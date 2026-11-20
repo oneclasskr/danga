@@ -23,17 +23,17 @@ INDICATORS = [
     {"id": "hrc", "label": "열연강판", "names": ["열연강대", "열연강판", "열연"], "links": ["강관", "SPP", "SPPS", "아연도"], "role": "탄소강관의 원재료"},
     {"id": "wpipe", "label": "용접강관", "names": ["용접강관", "철강관"], "links": ["강관", "SPP", "SPPS"], "role": "탄소강관"},
     {"id": "stsplate", "label": "스테인리스 강판", "names": ["스테인리스냉연강판", "스테인리스강판", "스테인리스열연강판", "스테인리스"], "links": ["스테인리스", "STS"], "role": "스테인리스강관의 원재료"},
-    {"id": "stspipe", "label": "스테인리스강관", "names": ["스테인리스강관"], "links": ["스테인리스", "STS"], "role": "스테인리스강관"},
+    {"id": "fitting", "label": "강관 이음쇠", "names": ["강관연결구류", "강관이음쇠"], "links": ["엘보", "티이", "레듀", "이음쇠", "플랜지", "후렌지"], "role": "엘보·티·레듀서·플랜지"},
     {"id": "nickel", "label": "니켈", "names": ["니켈괴", "니켈1차정련품", "니켈"], "links": ["스테인리스", "STS"], "role": "스테인리스의 주원료"},
     {"id": "copper", "label": "동(구리)", "names": ["전기동", "동1차정련품", "동괴", "나동선", "동제련,정련및합금제품"], "links": ["동관", "황동", "청동"], "role": "동관·황동 밸브의 원재료"},
     {"id": "cupipe", "label": "동관", "names": ["동관", "동및동합금관", "동압연제품", "동1차제품"], "links": ["동관"], "role": "동관"},
     {"id": "zinc", "label": "아연", "names": ["아연괴", "아연1차정련품", "아연", "연및아연제련,정련및합금제품"], "links": ["아연도", "백관"], "role": "아연도강관 도금 원료"},
-    {"id": "pvc", "label": "PVC 수지", "names": ["폴리염화비닐수지", "폴리염화비닐", "PVC", "플라스틱1차제품"], "links": ["PVC", "VG"], "role": "PVC관의 원재료"},
+    {"id": "pvc", "label": "PVC 수지", "names": ["폴리염화비닐수지", "염화비닐수지", "PVC수지", "플라스틱1차제품"], "links": ["PVC", "VG"], "role": "PVC관의 원재료"},
     {"id": "plpipe", "label": "플라스틱관", "names": ["플라스틱관", "플라스틱파이프", "합성수지관", "건축용플라스틱제품"], "links": ["PVC", "PE", "PP", "폴리"], "role": "PVC·PE관"},
     {"id": "valve", "label": "밸브", "names": ["밸브"], "links": ["밸브"], "role": "밸브류"},
     {"id": "castpipe", "label": "주철관", "names": ["주철관", "덕타일주철관", "주철"], "links": ["주철"], "role": "주철관"},
 ]
-HINT_WORDS = ["강", "관", "동", "니켈", "아연", "염화", "플라스틱", "밸브", "주철", "스테인리스"]
+HINT_WORDS = ["강", "관", "동", "니켈", "아연", "염화", "플라스틱", "밸브", "주철", "스테인리스", "수지", "폴리"]
 
 
 class EcosError(Exception):
@@ -65,13 +65,16 @@ def norm(s):
     return "".join(str(s).split()).replace("·", "")
 
 
-def find_item(items, names):
+LEVELS = (lambda x, n: x == n, lambda x, n: x.startswith(n), lambda x, n: n in x)
+
+
+def find_item(items, names, levels=LEVELS):
     """이름 후보 순서대로 정확히 같은 것 → 그 이름으로 시작하는 것 → 포함하는 것 중 가장 짧은 이름."""
     monthly = [i for i in items if i.get("CYCLE", "M") == "M"]
     for name in names:
         n = norm(name)
-        for test in (lambda x: x == n, lambda x: x.startswith(n), lambda x: n in x):
-            hits = [i for i in monthly if test(norm(i["ITEM_NAME"]))]
+        for test in levels:
+            hits = [i for i in monthly if test(norm(i["ITEM_NAME"]), n)]
             if hits:
                 return min(hits, key=lambda i: len(i["ITEM_NAME"]))
     return None
@@ -101,11 +104,15 @@ def collect(key, get=http_get, today=None):
     out, missing = [], []
     for ind in INDICATORS:
         hit = None
-        for name in ind["names"]:          # 이름 우선순위를 지키되, 같은 이름은 품목별 표를 먼저
-            for t, items in lists:
-                it = find_item(items, [name])
-                if it:
-                    hit = (t, it)
+        # 이름 우선순위 → 일치 정도(정확히 같음 > 시작 > 포함) → 품목별 표 먼저
+        for name in ind["names"]:
+            for level in LEVELS:
+                for t, items in lists:
+                    it = find_item(items, [name], (level,))
+                    if it:
+                        hit = (t, it)
+                        break
+                if hit:
                     break
             if hit:
                 break

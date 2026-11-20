@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import materials  # noqa: E402
 
 ITEMS = [("1", "총지수"), ("2", "열연강대"), ("3", "용접강관"), ("4", "스테인리스강관"), ("5", "스테인리스 냉연강판"),
-         ("6", "전기동"), ("7", "동 및 동합금관"), ("8", "아연괴"), ("9", "폴리염화비닐"), ("10", "플라스틱관"),
+         ("6", "전기동"), ("7", "동 및 동합금관"), ("8", "아연괴"), ("9", "폴리염화비닐수지"), ("15", "강관연결구류"), ("10", "플라스틱관"),
          ("11", "밸브"), ("12", "주철관 및 주철이음쇠"), ("13", "스테인리스강관용 강대")]
 calls = []
 
@@ -44,7 +44,6 @@ mat = json.loads((tmp / "materials.json").read_text())
 by = {o["id"]: o for o in mat["items"]}
 assert md == ""
 assert by["hrc"]["item"] == "열연강대"
-assert by["stspipe"]["item"] == "스테인리스강관"            # '…용 강대'보다 정확히 같은 이름 우선
 assert by["stsplate"]["item"] == "스테인리스 냉연강판"       # 띄어쓰기 달라도 찾음
 assert by["cupipe"]["item"] == "동 및 동합금관"
 assert by["castpipe"]["item"].startswith("주철관")
