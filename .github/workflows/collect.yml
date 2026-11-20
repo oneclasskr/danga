@@ -28,7 +28,9 @@ jobs:
       - name: 조달청 가격 수집
         env:
           DATA_GO_KR_KEY: ${{ secrets.DATA_GO_KR_KEY }}
+          ECOS_API_KEY: ${{ secrets.ECOS_API_KEY }}
           ALERT_THRESHOLD: "5"
+          MATERIAL_THRESHOLD: "3"
           BACKFILL_FROM: "20250101"
         run: python collect.py
 
@@ -46,7 +48,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh issue create \
-            --title "가격 변동 알림 $(date +%Y-%m-%d)" \
+            --title "단가·원자재 변동 알림 $(date +%Y-%m-%d)" \
             --body-file data/changes.md
 
       - name: 웹앱 파일 모으기
@@ -54,6 +56,7 @@ jobs:
           mkdir -p _site/data
           cp site/index.html _site/
           cp data/prices.json _site/data/
+          if [ -f data/materials.json ]; then cp data/materials.json _site/data/; fi
 
       - uses: actions/upload-pages-artifact@v3
         with:
