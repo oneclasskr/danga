@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>자재 단가 조회</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=Noto+Serif+KR:wght@600&display=swap" rel="stylesheet">
+<style>
+/* VOICE: 실무 도구. 차분하고 정확한, 신문 그래픽 데스크 수준의 표.
+   IDEA: 조달청 가격정보 책자의 단가표 + 견적서 한 장.
+   PICTURE: 검색 단가표 자체, 선택 품목의 가격 추이 선 그래프, 인쇄용 견적서 미리보기.
+   COLOUR and TYPE: 흰 바탕, 먹색 #14110f, 울트라마린 #1d2bd8, 상승은 카민 #c1121f. Noto Serif KR 제목 + Noto Sans KR 본문.
+   LAYOUT: 상단 제목·탭, 넓은 화면은 표 | 상세 2단, 600px 미만은 한 줄로 쌓기. */
+:root{color-scheme:light dark;--bg:light-dark(#ffffff,#0d0e18);--ink:light-dark(#14110f,#ecebf2);--mute:light-dark(#5d5a66,#a3a1b3);--line:light-dark(#e3e2e8,#262838);--soft:light-dark(#f5f5f8,#151726);--blue:light-dark(#1d2bd8,#8d97ff);--up:light-dark(#c1121f,#ff7a83);--down:light-dark(#0b6b4f,#5fd3a8)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 "Noto Sans KR",system-ui,sans-serif;overflow-x:clip}
+.band{padding:clamp(20px,3vw,40px) max(5vw,16px)}
+.wrap{max-width:1240px;margin:0 auto}
+h1{font:600 clamp(28px,4vw,40px)/1.1 "Noto Serif KR",serif;margin:0 0 6px;text-wrap:balance}
+h2{font:600 22px/1.2 "Noto Serif KR",serif;margin:0 0 12px}
+.sub{color:var(--mute);margin:0;font-size:15px}
+.note{font-size:13px;color:var(--mute)}
+nav{display:flex;gap:4px;flex-wrap:wrap;margin-top:18px;border-bottom:1px solid var(--line)}
+nav a{padding:10px 16px;min-height:44px;display:flex;align-items:center;color:var(--mute);text-decoration:none;border-bottom:3px solid transparent;margin-bottom:-1px;font-weight:500}
+nav a[aria-current]{color:var(--ink);border-color:var(--blue)}
+nav .badge{background:var(--up);color:#fff;border-radius:10px;font-size:12px;padding:0 7px;margin-left:6px}
+.view{display:none}.view.on{display:block}
+.tools{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+input,select,button{font:inherit;font-size:16px;color:var(--ink)}
+input,select{min-height:44px;padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
+input:focus-visible,select:focus-visible,button:focus-visible,a:focus-visible,tr:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+#q{flex:1 1 260px}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{min-height:36px;padding:4px 12px;border:1px solid var(--line);border-radius:18px;background:var(--bg);cursor:pointer}
+.chip[aria-pressed=true]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+button.pri{background:var(--blue);color:#fff;border:0;border-radius:8px;min-height:44px;padding:8px 16px;cursor:pointer;font-weight:500}
+button.sec{background:var(--bg);border:1px solid var(--line);border-radius:8px;min-height:44px;padding:8px 14px;cursor:pointer}
+button.add{background:none;border:1px solid var(--blue);color:var(--blue);border-radius:8px;min-height:36px;padding:2px 10px;cursor:pointer;white-space:nowrap}
+button.add.in{background:var(--blue);color:#fff}
+.grid{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:24px;align-items:start}
+table{width:100%;border-collapse:collapse;font-size:15px}
+th{text-align:left;font-weight:500;color:var(--mute);font-size:13px;padding:8px;border-bottom:1px solid var(--ink)}
+td{padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+tbody tr.row{cursor:pointer}tbody tr.row:hover,tbody tr.sel{background:var(--soft)}
+.spec{color:var(--mute);font-size:13px}
+.up{color:var(--up)}.down{color:var(--down)}
+.panel{border:1px solid var(--line);border-radius:12px;padding:18px;position:sticky;top:12px}
+.fig{position:relative;min-height:220px}.fig>svg{position:absolute;inset:0;width:100%;height:100%}
+.bars{display:grid;gap:8px;margin-top:14px}
+dl.kv{display:grid;grid-template-columns:6em minmax(0,1fr);gap:4px 10px;margin:14px 0 0;font-size:14px}dl.kv dt{color:var(--mute)}dl.kv dd{margin:0}
+.more{display:block;margin:14px auto 0}.more[hidden]{display:none}
+.empty{padding:28px;text-align:center;color:var(--mute);border:1px dashed var(--line);border-radius:12px}
+.sheet{background:#fff;color:#14110f;border:1px solid #d9d8de;border-radius:4px;padding:clamp(18px,3vw,36px);box-shadow:0 8px 30px rgba(20,17,15,.08)}
+.sheet h3{font:600 26px/1.2 "Noto Serif KR",serif;text-align:center;letter-spacing:.3em;margin:0 0 18px}
+.sheet table th{color:#5d5a66;border-color:#14110f}.sheet td{border-color:#e3e2e8}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-bottom:16px}
+.meta label{display:grid;gap:4px;font-size:13px;color:#5d5a66}
+.meta input{background:#fff;color:#14110f;border-color:#d9d8de}
+.sheet input.qty{width:6.5em;text-align:right;min-height:38px;background:#fff;color:#14110f;border-color:#d9d8de}
+.tot td{border:0;padding:5px 8px}.tot tr:last-child td{font-weight:700;font-size:18px;border-top:2px solid #14110f;padding-top:10px}
+.x{background:none;border:0;color:#c1121f;cursor:pointer;min-height:36px;font-size:18px}
+.acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.msg{font-size:14px;color:var(--blue);min-height:1.5em;margin-top:8px}
+.alert{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 16px;padding:14px 0;border-bottom:1px solid var(--line)}
+.alert b{font-weight:500}.alert .pct{font-size:22px;font-weight:700;text-align:right;font-variant-numeric:tabular-nums}
+.scroll{overflow-x:auto}
+@media(max-width:900px){.grid{grid-template-columns:minmax(0,1fr)}.panel{position:static}}
+@media(max-width:600px){.sheet input.qty{width:4.5em}table{font-size:13px}.stack thead{display:none}.stack tr{display:grid;padding-block:10px;border-bottom:1px solid var(--line)}.stack td{display:flow-root;border:0;padding:3px 0;padding-inline-start:6.5em;text-align:start}.stack td::before{content:attr(data-l);float:inline-start;width:6em;margin-inline-start:-6.5em;white-space:normal;color:var(--mute)}.stack td:empty{display:none}.sheet h3{letter-spacing:.1em}}
+@media(prefers-reduced-motion:no-preference){.view.on{animation:f .2s ease-out}@keyframes f{from{opacity:0;transform:translateY(4px)}}}
+</style>
+<script>new MutationObserver(()=>{for(const c of document.querySelectorAll('.stack td:not([data-l])')){let i=0,p=c;while(p=p.previousElementSibling)i+=p.colSpan;c.dataset.l=c.closest('table').rows[0].cells[i]?.textContent||''}}).observe(document,{childList:true,subtree:true})</script>
+</head>
+<body>
+<header class="band" style="padding-bottom:0">
+<div class="wrap">
+<h1>자재 단가 조회</h1>
+<p class="sub">조달청 시설공통자재 가격을 매주 자동으로 받아와 검색하고, 바로 견적서를 만듭니다.</p>
+<p class="note" id="asof">가격 자료를 불러오는 중입니다…</p>
+<nav aria-label="화면">
+<a href="#search" data-v="search">단가 검색</a>
+<a href="#quote" data-v="quote">견적서 <span class="badge" id="qn" hidden></span></a>
+<a href="#alerts" data-v="alerts">가격 변동 알림 <span class="badge" id="an" hidden></span></a>
+</nav>
+</div>
+</header>
+
+<main class="band"><div class="wrap">
+
+<section class="view" id="v-search">
+<div class="tools">
+<input id="q" type="search" placeholder="품목명이나 규격으로 검색 (예: 강관 50A, 게이트밸브)" aria-label="검색">
+<div class="chips" id="cats"></div>
+</div>
+<div class="grid">
+<div>
+<table class="stack" id="tbl">
+<thead><tr><th>품목 · 규격</th><th>단위</th><th class="num">단가(원)</th><th class="num">직전 대비</th><th>게시일</th><th></th></tr></thead>
+<tbody></tbody>
+</table>
+<p class="note" id="cnt"></p>
+<button class="sec more" id="more" hidden>더 보기</button>
+</div>
+<aside class="panel" id="detail" aria-live="polite"></aside>
+</div>
+</section>
+
+<section class="view" id="v-quote">
+<div class="sheet">
+<h3>견 적 서</h3>
+<div class="meta">
+<label>공사명<input id="m-proj" placeholder="예: OO공장 배관 교체공사"></label>
+<label>수신<input id="m-to" placeholder="예: (주)OO건설 구매팀"></label>
+<label>견적일<input id="m-date" type="date"></label>
+</div>
+<div class="scroll">
+<table id="qt">
+<thead><tr><th>품목 · 규격</th><th>단위</th><th class="num">수량</th><th class="num">단가</th><th class="num">금액</th><th></th></tr></thead>
+<tbody></tbody>
+</table>
+</div>
+<table class="tot" style="max-width:360px;margin-left:auto;margin-top:12px"><tbody id="tot"></tbody></table>
+</div>
+<div class="acts">
+<button class="pri" id="pr">인쇄 / PDF 저장</button>
+<button class="sec" id="dl-csv">엑셀용 CSV 내려받기</button>
+<button class="sec" id="cp">표 복사</button>
+<button class="sec" id="clr">모두 지우기</button>
+</div>
+<p class="msg" id="qmsg"></p>
+</section>
+
+<section class="view" id="v-alerts">
+<div class="tools">
+<select id="per" aria-label="기간"><option value="30">최근 1개월</option><option value="90" selected>최근 3개월</option><option value="182">최근 6개월</option><option value="365">최근 1년</option></select>
+<span>동안</span>
+<select id="th" aria-label="변동률 기준"><option>3</option><option selected>5</option><option>10</option></select>
+<span>% 이상 바뀐 품목</span>
+</div>
+<div id="alist"></div>
+<p class="note" style="margin-top:16px">매주 수집할 때 기준을 넘는 품목이 있으면 저장소의 이슈로 등록되어 메일로도 알림이 갑니다.</p>
+</section>
+
+<p class="note" style="margin-top:32px">출처: 조달청 나라장터 가격정보현황서비스(공공데이터포털). 조달청이 시설공사 원가계산에 쓰는 참고 가격이며, 수량·조건·수급 상황에 따라 실제 거래가와 다를 수 있습니다.</p>
+</div></main>
+
+<script>
+{
+const $=s=>document.querySelector(s);
+const won=v=>v==null?'—':Math.round(v).toLocaleString('ko-KR');
+const pct=v=>v==null?'—':(v>0?'+':'')+v.toFixed(1)+'%';
+const cls=v=>v>0.05?'up':v<-0.05?'down':'';
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const store={get(k,d){try{const v=localStorage.getItem('danga.'+k);return v?JSON.parse(v):d}catch(e){return d}},set(k,v){try{localStorage.setItem('danga.'+k,JSON.stringify(v))}catch(e){}}};
+const PAGE=200;
+let D=[],byK={},cats=['전체'],cat='전체',sel=null,q='',shown=PAGE,ro;
+let lines=store.get('lines',[]);
+const meta=store.get('meta',{});
+const inQuote=k=>lines.some(l=>l.k===k);
+
+const drawCats=()=>{$('#cats').innerHTML=cats.map(c=>`<button class="chip" aria-pressed="${c===cat}" data-c="${esc(c)}">${esc(c)}</button>`).join('')};
+const list=()=>{const t=q.trim().toLowerCase().split(/\s+/).filter(Boolean);return D.filter(x=>(cat==='전체'||x.cat===cat)&&t.every(w=>x._s.includes(w)))};
+const drawTable=()=>{const L=list(),V=L.slice(0,shown);
+$('#tbl tbody').innerHTML=V.length?V.map(x=>`<tr class="row${x.k===sel?' sel':''}" data-k="${esc(x.k)}" tabindex="0"><td>${esc(x.name)}<div class="spec">${esc(x.spec)}</div></td><td>${esc(x.unit)}</td><td class="num"><b>${won(x.p)}</b></td><td class="num ${cls(x.ch)}">${pct(x.ch)}</td><td style="white-space:nowrap">${esc(x.d)}</td><td><button class="add${inQuote(x.k)?' in':''}" data-add="${esc(x.k)}">${inQuote(x.k)?'담김':'+ 견적'}</button></td></tr>`).join(''):`<tr><td colspan="6"><div class="empty">${D.length?`'${esc(q)}'에 맞는 품목이 없습니다. 다른 이름이나 규격으로 찾아보세요.`:'아직 수집된 가격이 없습니다.'}</div></td></tr>`;
+$('#cnt').textContent=L.length>V.length?`${L.length.toLocaleString('ko-KR')}개 중 ${V.length}개 표시`:`${L.length.toLocaleString('ko-KR')}개 품목`;
+$('#more').hidden=L.length<=V.length};
+
+const drawDetail=()=>{const x=byK[sel];const el=$('#detail');
+if(!x){el.innerHTML='<div class="empty">표에서 품목을 고르면 가격 변화와 조건이 여기에 나옵니다.</div>';return}
+el.innerHTML=`<h2>${esc(x.name)} <span class="spec">${esc(x.spec)}</span></h2>
+<p class="note" style="margin:0 0 8px">가격이 바뀐 시점별 단가 (원/${esc(x.unit)})</p>${x.h.length>1?`<div class="fig"><svg role="img" aria-label="${esc(x.name)} 가격 변화"></svg></div>`:`<p class="empty">수집 기간 동안 가격이 ${won(x.p)}원으로 바뀌지 않았습니다.</p>`}
+<dl class="kv"><dt>현재 단가</dt><dd><b>${won(x.p)}원</b> / ${esc(x.unit)}</dd><dt>직전 대비</dt><dd class="${cls(x.ch)}">${pct(x.ch)}${x.ch!=null?` (${esc(x.cd)} 변경)`:''}</dd><dt>최근 게시</dt><dd>${esc(x.d)}</dd><dt>분야</dt><dd>${esc(x.cat)}</dd><dt>공급 지역</dt><dd>${esc(x.rgn)||'—'}</dd><dt>인도 조건</dt><dd>${esc(x.dlv)||'—'}</dd><dt>부가세</dt><dd>${esc(x.vat)||'—'}</dd></dl>
+<div class="acts"><button class="pri" data-add="${esc(x.k)}">${inQuote(x.k)?'견적서에 담김 · 보기':'견적서에 담기'}</button></div>`;
+const s=el.querySelector('svg');if(ro)ro.disconnect();if(!s)return;
+const draw=()=>{const W=s.clientWidth,H=s.clientHeight;if(!W)return;const n=x.h.length,pl=8,pr=8,pt=28,pb=28,vs=x.h.map(h=>h[1]);const lo=Math.min(...vs)*.97,hi=Math.max(...vs)*1.02;
+const X=i=>pl+(W-pl-pr)*(i/(n-1)),Y=v=>pt+(H-pt-pb)*(1-(v-lo)/(hi-lo||1));const narrow=W/n<70;
+const anc=i=>i===0?'start':i===n-1?'end':'middle';
+s.innerHTML=`<line x1="${pl}" x2="${W-pr}" y1="${H-pb}" y2="${H-pb}" stroke="var(--line)"/><polyline points="${x.h.map((h,i)=>`${X(i)},${Y(h[1])}`).join(' ')}" fill="none" stroke="var(--blue)" stroke-width="2.5"/>`+
+x.h.map((h,i)=>{const last=i===n-1,lab=!narrow||last||i===0;return `<circle cx="${X(i)}" cy="${Y(h[1])}" r="${last?5:3.5}" fill="${last?'var(--blue)':'var(--bg)'}" stroke="var(--blue)" stroke-width="2"/>${lab?`<text x="${X(i)}" y="${H-8}" font-size="12" fill="var(--mute)" text-anchor="${anc(i)}">${h[0].slice(2,7).replace('-','.')}</text><text x="${X(i)}" y="${Y(h[1])-10}" font-size="12" fill="${last?'var(--ink)':'var(--mute)'}" font-weight="${last?700:400}" text-anchor="${anc(i)}">${won(h[1])}</text>`:''}`}).join('')};
+ro=new ResizeObserver(draw);ro.observe(s);draw()};
+
+const calc=()=>{const rows=lines.map(l=>{const x=byK[l.k]||l.snap;return{x,qty:l.qty,p:x.p,amt:Math.round(x.p*l.qty),gone:!byK[l.k]}});const sub=rows.reduce((a,r)=>a+r.amt,0),vat=Math.round(sub*.1);return{rows,sub,vat,total:sub+vat}};
+const drawQuote=()=>{const c=calc();
+$('#qt tbody').innerHTML=c.rows.length?c.rows.map((r,i)=>`<tr><td>${esc(r.x.name)}<div class="spec">${esc(r.x.spec)}${r.gone?' · 최신 자료에 없음, 담을 때 단가 사용':''}</div></td><td>${esc(r.x.unit)}</td><td class="num"><input class="qty" type="number" min="0" step="any" inputmode="decimal" value="${r.qty}" data-i="${i}" aria-label="${esc(r.x.name)} 수량"></td><td class="num">${won(r.p)}</td><td class="num amt"><b>${won(r.amt)}</b></td><td><button class="x" data-del="${i}" aria-label="삭제">×</button></td></tr>`).join(''):`<tr><td colspan="6"><div class="empty" style="border-color:#d9d8de;color:#5d5a66">아직 담은 품목이 없습니다. 단가 검색에서 '+ 견적'을 누르세요.</div></td></tr>`;
+drawTot(c)};
+const drawTot=c=>{$('#tot').innerHTML=`<tr><td>공급가액</td><td class="num">${won(c.sub)}원</td></tr><tr><td>부가세 (10%)</td><td class="num">${won(c.vat)}원</td></tr><tr><td>합계</td><td class="num">${won(c.total)}원</td></tr>`;
+$('#qn').hidden=!lines.length;$('#qn').textContent=lines.length};
+const saveQ=()=>{store.set('lines',lines);store.set('meta',{proj:$('#m-proj').value,to:$('#m-to').value,date:$('#m-date').value})};
+
+const drawAlerts=()=>{const t=+$('#th').value,days=+$('#per').value;const from=new Date(Date.now()-days*864e5).toISOString().slice(0,10);
+const A=D.filter(x=>x.ch!=null&&Math.abs(x.ch)>=t&&x.cd>=from).sort((a,b)=>Math.abs(b.ch)-Math.abs(a.ch));
+$('#an').hidden=!A.length;$('#an').textContent=A.length>99?'99+':A.length;
+$('#alist').innerHTML=A.length?A.slice(0,300).map(x=>`<div class="alert"><div><b>${esc(x.name)}</b> <span class="spec">${esc(x.spec)} · ${esc(x.cat)}</span><div class="note">${won(x.h[x.h.length-2][1])}원 → ${won(x.p)}원 / ${esc(x.unit)} · ${esc(x.cd)} 변경</div></div><div class="pct ${cls(x.ch)}">${pct(x.ch)}</div></div>`).join('')+(A.length>300?`<p class="note">외 ${A.length-300}개</p>`:''):`<div class="empty">이 기간에 ${t}% 이상 바뀐 품목이 없습니다.</div>`};
+
+const toggle=k=>{if(inQuote(k)){location.hash='quote';return}const x=byK[k];lines.push({k,qty:1,snap:{name:x.name,spec:x.spec,unit:x.unit,p:x.p}});saveQ();drawTable();drawDetail();drawQuote()};
+document.addEventListener('click',e=>{const a=e.target.closest('[data-add]');if(a){e.stopPropagation();toggle(a.dataset.add);return}
+const c=e.target.closest('[data-c]');if(c){cat=c.dataset.c;shown=PAGE;drawCats();drawTable();return}
+const d=e.target.closest('[data-del]');if(d){lines.splice(+d.dataset.del,1);saveQ();drawQuote();drawTable();drawDetail();return}
+const r=e.target.closest('tr.row');if(r){sel=r.dataset.k;drawTable();drawDetail();if(innerWidth<900)$('#detail').scrollIntoView({behavior:'smooth',block:'start'})}});
+$('#tbl').addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.matches('tr.row')){sel=e.target.dataset.k;drawTable();drawDetail()}});
+let tq;$('#q').addEventListener('input',e=>{clearTimeout(tq);tq=setTimeout(()=>{q=e.target.value;shown=PAGE;drawTable()},150)});
+$('#more').addEventListener('click',()=>{shown+=PAGE;drawTable()});
+$('#qt').addEventListener('input',e=>{if(e.target.matches('.qty')){const i=+e.target.dataset.i;lines[i].qty=Math.max(0,+e.target.value||0);saveQ();const c=calc();e.target.closest('tr').querySelector('.amt').innerHTML=`<b>${won(c.rows[i].amt)}</b>`;drawTot(c)}});
+['m-proj','m-to','m-date'].forEach(i=>$('#'+i).addEventListener('input',saveQ));
+$('#th').addEventListener('change',drawAlerts);$('#per').addEventListener('change',drawAlerts);
+$('#clr').addEventListener('click',()=>{if(!lines.length)return;lines=[];saveQ();drawQuote();drawTable();drawDetail();$('#qmsg').textContent='담은 품목을 모두 지웠습니다.'});
+
+const head=()=>({proj:$('#m-proj').value||'(공사명 미입력)',to:$('#m-to').value||'',date:$('#m-date').value});
+const sheetHTML=()=>{const c=calc(),h=head();return `<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"><title>견적서 - ${esc(h.proj)}</title><style>body{font-family:"Malgun Gothic","Noto Sans KR",sans-serif;color:#14110f;max-width:800px;margin:40px auto;padding:0 24px}h1{text-align:center;letter-spacing:.4em}table{width:100%;border-collapse:collapse;margin-top:16px}th,td{border:1px solid #999;padding:6px 8px;font-size:14px}th{background:#f2f2f2}.n{text-align:right}.m td{border:0;padding:2px 0}</style></head><body><h1>견 적 서</h1><table class="m"><tr><td>공사명: ${esc(h.proj)}</td><td class="n">견적일: ${esc(h.date)}</td></tr><tr><td>수신: ${esc(h.to)}</td><td class="n">단가 기준: 조달청 시설공통자재 가격</td></tr></table><table><tr><th>No</th><th>품목</th><th>규격</th><th>단위</th><th>수량</th><th>단가</th><th>금액</th></tr>${c.rows.map((r,i)=>`<tr><td class="n">${i+1}</td><td>${esc(r.x.name)}</td><td>${esc(r.x.spec)}</td><td>${esc(r.x.unit)}</td><td class="n">${r.qty}</td><td class="n">${won(r.p)}</td><td class="n">${won(r.amt)}</td></tr>`).join('')}<tr><td colspan="6" class="n">공급가액</td><td class="n">${won(c.sub)}</td></tr><tr><td colspan="6" class="n">부가세 (10%)</td><td class="n">${won(c.vat)}</td></tr><tr><td colspan="6" class="n"><b>합계</b></td><td class="n"><b>${won(c.total)}</b></td></tr></table></body></html>`};
+const csv=()=>{const c=calc(),h=head();const qv=v=>`"${String(v).replace(/"/g,'""')}"`;return '﻿'+[['공사명',h.proj],['수신',h.to],['견적일',h.date],[],['No','품목','규격','단위','수량','단가','금액'],...c.rows.map((r,i)=>[i+1,r.x.name,r.x.spec,r.x.unit,r.qty,r.p,r.amt]),[],['','','','','','공급가액',c.sub],['','','','','','부가세',c.vat],['','','','','','합계',c.total]].map(r=>r.map(qv).join(',')).join('\r\n')};
+const fname=ext=>`견적서_${head().proj.replace(/[\\/:*?"<>|()]/g,'').trim()||'미입력'}_${head().date||'날짜없음'}.${ext}`;
+$('#pr').addEventListener('click',()=>{if(!lines.length){$('#qmsg').textContent='먼저 품목을 담아 주세요.';return}const w=window.open('','_blank');if(!w){$('#qmsg').textContent='팝업이 막혀 있습니다. 브라우저에서 이 사이트의 팝업을 허용해 주세요.';return}w.document.write(sheetHTML());w.document.close();w.focus();setTimeout(()=>w.print(),300)});
+$('#dl-csv').addEventListener('click',()=>{if(!lines.length){$('#qmsg').textContent='먼저 품목을 담아 주세요.';return}const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv()],{type:'text/csv'}));a.download=fname('csv');document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000);$('#qmsg').textContent=fname('csv')+' 파일을 내려받았습니다.'});
+$('#cp').addEventListener('click',async()=>{const c=calc();const t=['품목\t규격\t단위\t수량\t단가\t금액',...c.rows.map(r=>[r.x.name,r.x.spec,r.x.unit,r.qty,r.p,r.amt].join('\t')),`\t\t\t\t공급가액\t${c.sub}`,`\t\t\t\t부가세\t${c.vat}`,`\t\t\t\t합계\t${c.total}`].join('\n');
+try{await navigator.clipboard.writeText(t);$('#qmsg').textContent='표를 복사했습니다. 엑셀에 붙여 넣을 수 있습니다.'}catch(e){$('#qmsg').textContent='복사가 허용되지 않았습니다.'}});
+
+$('#m-proj').value=meta.proj||'';$('#m-to').value=meta.to||'';$('#m-date').value=meta.date||new Date().toISOString().slice(0,10);
+
+const route=()=>{const v=['search','quote','alerts'].includes(location.hash.slice(1))?location.hash.slice(1):'search';
+document.querySelectorAll('.view').forEach(s=>s.classList.toggle('on',s.id==='v-'+v));
+document.querySelectorAll('nav a').forEach(a=>a.dataset.v===v?a.setAttribute('aria-current','page'):a.removeAttribute('aria-current'));
+if(v==='search')drawDetail()};
+addEventListener('hashchange',route);
+drawQuote();route();
+
+fetch('data/prices.json',{cache:'no-cache'}).then(r=>{if(!r.ok)throw new Error(r.status);return r.json()}).then(j=>{
+D=j.items||[];D.forEach(x=>{x._s=(x.name+' '+x.spec+' '+x.cat).toLowerCase();byK[x.k]=x});
+cats=['전체',...[...new Set(D.map(x=>x.cat))].sort()];
+$('#asof').textContent=`${(j.through||'').replace(/-/g,'.')}까지 게시된 가격 · 품목 ${D.length.toLocaleString('ko-KR')}개 · 매주 월요일 자동 갱신`;
+sel=null;drawCats();drawTable();drawQuote();drawAlerts();route()
+}).catch(()=>{$('#asof').textContent='가격 자료를 불러오지 못했습니다. 수집이 한 번 이상 끝났는지 확인해 주세요.';drawCats();drawTable();drawAlerts()});
+}
+</script>
+</body>
+</html>
