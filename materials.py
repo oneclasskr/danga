@@ -15,21 +15,21 @@ import urllib.request
 from pathlib import Path
 
 BASE = "https://ecos.bok.or.kr/api"
-STAT = "404Y014"   # 생산자물가지수(기본분류)
+TABLES = ["404Y016", "404Y014"]   # 생산자물가지수 품목별 → 없으면 기본분류
 MONTHS = 36
 
 # 배관 자재와 연결되는 지표. names: 우선순위대로 찾을 품목 이름, links: 앱 단가 검색에서 연결할 품목 단어
 INDICATORS = [
     {"id": "hrc", "label": "열연강판", "names": ["열연강대", "열연강판", "열연"], "links": ["강관", "SPP", "SPPS", "아연도"], "role": "탄소강관의 원재료"},
-    {"id": "wpipe", "label": "용접강관", "names": ["용접강관", "강관"], "links": ["강관", "SPP", "SPPS"], "role": "탄소강관"},
-    {"id": "stsplate", "label": "스테인리스 강판", "names": ["스테인리스냉연강판", "스테인리스강판", "스테인리스열연강판"], "links": ["스테인리스", "STS"], "role": "스테인리스강관의 원재료"},
+    {"id": "wpipe", "label": "용접강관", "names": ["용접강관", "철강관"], "links": ["강관", "SPP", "SPPS"], "role": "탄소강관"},
+    {"id": "stsplate", "label": "스테인리스 강판", "names": ["스테인리스냉연강판", "스테인리스강판", "스테인리스열연강판", "스테인리스"], "links": ["스테인리스", "STS"], "role": "스테인리스강관의 원재료"},
     {"id": "stspipe", "label": "스테인리스강관", "names": ["스테인리스강관"], "links": ["스테인리스", "STS"], "role": "스테인리스강관"},
-    {"id": "nickel", "label": "니켈", "names": ["니켈괴", "니켈"], "links": ["스테인리스", "STS"], "role": "스테인리스의 주원료"},
-    {"id": "copper", "label": "동(구리)", "names": ["전기동", "동괴", "나동선"], "links": ["동관", "황동", "청동"], "role": "동관·황동 밸브의 원재료"},
-    {"id": "cupipe", "label": "동관", "names": ["동관", "동및동합금관", "동압연제품"], "links": ["동관"], "role": "동관"},
-    {"id": "zinc", "label": "아연", "names": ["아연괴", "아연"], "links": ["아연도", "백관"], "role": "아연도강관 도금 원료"},
-    {"id": "pvc", "label": "PVC 수지", "names": ["폴리염화비닐", "PVC"], "links": ["PVC", "VG"], "role": "PVC관의 원재료"},
-    {"id": "plpipe", "label": "플라스틱관", "names": ["플라스틱관", "플라스틱파이프", "합성수지관"], "links": ["PVC", "PE", "PP", "폴리"], "role": "PVC·PE관"},
+    {"id": "nickel", "label": "니켈", "names": ["니켈괴", "니켈1차정련품", "니켈"], "links": ["스테인리스", "STS"], "role": "스테인리스의 주원료"},
+    {"id": "copper", "label": "동(구리)", "names": ["전기동", "동1차정련품", "동괴", "나동선", "동제련,정련및합금제품"], "links": ["동관", "황동", "청동"], "role": "동관·황동 밸브의 원재료"},
+    {"id": "cupipe", "label": "동관", "names": ["동관", "동및동합금관", "동압연제품", "동1차제품"], "links": ["동관"], "role": "동관"},
+    {"id": "zinc", "label": "아연", "names": ["아연괴", "아연1차정련품", "아연", "연및아연제련,정련및합금제품"], "links": ["아연도", "백관"], "role": "아연도강관 도금 원료"},
+    {"id": "pvc", "label": "PVC 수지", "names": ["폴리염화비닐수지", "폴리염화비닐", "PVC", "플라스틱1차제품"], "links": ["PVC", "VG"], "role": "PVC관의 원재료"},
+    {"id": "plpipe", "label": "플라스틱관", "names": ["플라스틱관", "플라스틱파이프", "합성수지관", "건축용플라스틱제품"], "links": ["PVC", "PE", "PP", "폴리"], "role": "PVC·PE관"},
     {"id": "valve", "label": "밸브", "names": ["밸브"], "links": ["밸브"], "role": "밸브류"},
     {"id": "castpipe", "label": "주철관", "names": ["주철관", "덕타일주철관", "주철"], "links": ["주철"], "role": "주철관"},
 ]
@@ -85,16 +85,35 @@ def collect(key, get=http_get, today=None):
     today = today or dt.date.today()
     first = (today.replace(day=1) - dt.timedelta(days=MONTHS * 31)).strftime("%Y%m")
     last = today.strftime("%Y%m")
-    items = call(get, "StatisticItemList", key, STAT, end=5000)
-    if not items:
+    lists = []
+    for t in TABLES:
+        try:
+            items = call(get, "StatisticItemList", key, t, end=5000)
+        except EcosError as e:
+            if not lists and t == TABLES[-1]:
+                raise
+            print(f"  {t} 품목 목록을 못 받음: {e}")
+            continue
+        if items:
+            lists.append((t, items))
+    if not lists:
         raise EcosError("생산자물가지수 품목 목록이 비어 있음")
     out, missing = [], []
     for ind in INDICATORS:
-        it = find_item(items, ind["names"])
-        if not it:
+        hit = None
+        for name in ind["names"]:          # 이름 우선순위를 지키되, 같은 이름은 품목별 표를 먼저
+            for t, items in lists:
+                it = find_item(items, [name])
+                if it:
+                    hit = (t, it)
+                    break
+            if hit:
+                break
+        if not hit:
             missing.append(ind["label"])
             continue
-        rows = call(get, "StatisticSearch", key, STAT, "M", first, last, it["ITEM_CODE"], end=200)
+        t, it = hit
+        rows = call(get, "StatisticSearch", key, t, "M", first, last, it["ITEM_CODE"], end=200)
         series = []
         for r in rows:
             try:
@@ -111,12 +130,12 @@ def collect(key, get=http_get, today=None):
         prev_m = f"{y - (m == 1)}-{12 if m == 1 else m - 1:02d}"
         yago_m = f"{y - 1}-{m:02d}"
         out.append({"id": ind["id"], "label": ind["label"], "role": ind["role"], "links": ind["links"],
-                    "item": it["ITEM_NAME"], "code": it["ITEM_CODE"], "unit": it.get("UNIT_NAME") or "지수",
+                    "item": it["ITEM_NAME"], "code": it["ITEM_CODE"], "table": t, "unit": it.get("UNIT_NAME") or "지수",
                     "m": cur_m, "v": cur, "mom": pct(cur, vals.get(prev_m)), "yoy": pct(cur, vals.get(yago_m)),
                     "s": series})
-    hints = sorted({f"{i['ITEM_CODE']}\t{i['ITEM_NAME']}" for i in items
+    hints = sorted({f"{t}\t{i['ITEM_CODE']}\t{i['ITEM_NAME']}" for t, items in lists for i in items
                     if any(w in i["ITEM_NAME"] for w in HINT_WORDS)})
-    return {"through": max((o["m"] for o in out), default=None), "source": "한국은행 생산자물가지수(기본분류)",
+    return {"through": max((o["m"] for o in out), default=None), "source": "한국은행 생산자물가지수",
             "items": out, "missing": missing}, hints
 
 

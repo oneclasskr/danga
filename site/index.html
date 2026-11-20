@@ -59,6 +59,13 @@ dl.kv{display:grid;grid-template-columns:6em minmax(0,1fr);gap:4px 10px;margin:1
 .mcard .fig{min-height:120px;margin-top:6px}
 .chg{display:flex;gap:14px;font-size:14px;font-variant-numeric:tabular-nums}
 .rel{margin-top:16px;padding-top:12px;border-top:1px solid var(--line)}.rel a{color:var(--blue)}
+.src{display:inline-block;font-size:11px;border-radius:4px;padding:0 5px;margin-left:6px;vertical-align:1px;border:1px solid var(--line);color:var(--mute)}.src.kpi{color:var(--blue);border-color:var(--blue)}
+.box{border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:18px}.box h2{margin-bottom:6px}
+.row2{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.row2 input[type=password]{flex:1 1 220px}
+input[type=file]{min-height:auto;padding:8px;max-width:100%}
+.st{display:inline-block;font-size:12px;border-radius:10px;padding:1px 8px;white-space:nowrap}.st.auto{background:light-dark(#e3f4ec,#123326);color:var(--down)}.st.check{background:light-dark(#fff3d6,#3a2e10);color:light-dark(#8a5a00,#ffcf70)}.st.none{background:var(--soft);color:var(--mute)}.st.man{background:light-dark(#e8eaff,#1d2150);color:var(--blue)}
+#at td{vertical-align:top}#at select{max-width:min(340px,100%);min-height:38px;font-size:14px}#at input.uprice{width:8em;text-align:right;min-height:38px}
+.sum{display:flex;gap:18px;flex-wrap:wrap;font-variant-numeric:tabular-nums;margin:10px 0}.sum b{font-size:20px}
 .empty{padding:28px;text-align:center;color:var(--mute);border:1px dashed var(--line);border-radius:12px}
 .sheet{background:#fff;color:#14110f;border:1px solid #d9d8de;border-radius:4px;padding:clamp(18px,3vw,36px);box-shadow:0 8px 30px rgba(20,17,15,.08)}
 .sheet h3{font:600 26px/1.2 "Noto Serif KR",serif;text-align:center;letter-spacing:.3em;margin:0 0 18px}
@@ -84,13 +91,15 @@ dl.kv{display:grid;grid-template-columns:6em minmax(0,1fr);gap:4px 10px;margin:1
 <header class="band" style="padding-bottom:0">
 <div class="wrap">
 <h1>자재 단가 조회</h1>
-<p class="sub">조달청 시설공통자재 가격을 매주 자동으로 받아와 검색하고, 바로 견적서를 만듭니다.</p>
+<p class="sub">조달청 시설공통자재 가격과 한국물가정보 단가로 검색하고, 내역서 엑셀을 넣으면 자동으로 견적을 만듭니다.</p>
 <p class="note" id="asof">가격 자료를 불러오는 중입니다…</p>
 <nav aria-label="화면">
 <a href="#search" data-v="search">단가 검색</a>
+<a href="#auto" data-v="auto">자동 견적</a>
 <a href="#quote" data-v="quote">견적서 <span class="badge" id="qn" hidden></span></a>
 <a href="#alerts" data-v="alerts">가격 변동 알림 <span class="badge" id="an" hidden></span></a>
 <a href="#materials" data-v="materials">원자재 동향</a>
+<a href="#data" data-v="data">물가정보 자료</a>
 </nav>
 </div>
 </header>
@@ -112,6 +121,21 @@ dl.kv{display:grid;grid-template-columns:6em minmax(0,1fr);gap:4px 10px;margin:1
 <button class="sec more" id="more" hidden>더 보기</button>
 </div>
 <aside class="panel" id="detail" aria-live="polite"></aside>
+</div>
+</section>
+
+<section class="view" id="v-auto">
+<div class="box">
+<h2>내역서 엑셀로 자동 견적</h2>
+<p class="note" style="margin:0 0 12px">품명·규격·단위·수량 열이 있는 내역서(.xlsx, .xls)를 고르면 줄마다 맞는 단가를 찾아 채웁니다. 한국물가정보 단가를 먼저 쓰고, 없으면 조달청 단가를 씁니다. 파일은 이 브라우저 안에서만 읽고 어디에도 올리지 않습니다.</p>
+<div class="row2"><input type="file" id="af" accept=".xlsx,.xls,.xlsm,.csv" aria-label="내역서 파일"><select id="asheet" aria-label="시트" hidden></select></div>
+<p class="msg" id="amsg"></p>
+</div>
+<div id="ares" hidden>
+<div class="sum" id="asum"></div>
+<div class="tools"><div class="chips" id="afl"></div><span style="flex:1"></span><button class="pri" id="a2q">견적서로 보내기</button><button class="sec" id="acsv">결과 CSV</button></div>
+<div class="scroll"><table id="at" class="stack"><thead><tr><th>#</th><th>내역 품명 · 규격</th><th>단위</th><th class="num">수량</th><th>찾은 단가 품목</th><th class="num">단가</th><th class="num">금액</th><th>상태</th></tr></thead><tbody></tbody></table></div>
+<button class="sec more" id="amore" hidden>더 보기</button>
 </div>
 </section>
 
@@ -157,9 +181,26 @@ dl.kv{display:grid;grid-template-columns:6em minmax(0,1fr);gap:4px 10px;margin:1
 <p class="note" style="margin-top:16px">한국은행 생산자물가지수(2020년=100)입니다. 지수가 110이면 2020년보다 10% 비싸다는 뜻이고, 매달 중순 전월 값이 발표됩니다. 전월 대비 3% 이상 움직이면 알림에 함께 실립니다.</p>
 </section>
 
-<p class="note" style="margin-top:32px">출처: 조달청 나라장터 가격정보현황서비스(공공데이터포털). 조달청이 시설공사 원가계산에 쓰는 참고 가격이며, 수량·조건·수급 상황에 따라 실제 거래가와 다를 수 있습니다.</p>
+<section class="view" id="v-data">
+<div class="box" id="kunlock">
+<h2>한국물가정보 단가 열기</h2>
+<p class="note" id="kstat" style="margin:0 0 12px">확인 중입니다…</p>
+<form class="row2" id="kform"><input type="password" id="kpw" autocomplete="current-password" placeholder="자료 비밀번호" aria-label="자료 비밀번호"><label style="font-size:14px"><input type="checkbox" id="kremember"> 이 기기에서 기억</label><button class="pri">열기</button></form>
+<p class="msg" id="kmsg"></p>
+</div>
+<div class="box">
+<h2>새 물가정보 파일 만들기</h2>
+<p class="note" style="margin:0 0 12px">한국물가정보 '나의 물가정보'에서 내려받은 엑셀을 고르고 비밀번호를 정하면, 이 브라우저 안에서 암호화한 <b>kpi.enc</b> 파일을 만들어 줍니다. 원본 엑셀은 어디에도 올라가지 않습니다. 만든 파일을 GitHub 저장소의 <b>data</b> 폴더에 올리면 앱에 반영됩니다.</p>
+<div class="row2" style="margin-bottom:10px"><input type="file" id="kf" accept=".xls,.xlsx,.htm,.html" aria-label="한국물가정보 엑셀"></div>
+<form class="row2" id="kmk"><input type="password" id="kpw1" autocomplete="new-password" placeholder="비밀번호 (12자 이상)" aria-label="새 비밀번호"><input type="password" id="kpw2" autocomplete="new-password" placeholder="비밀번호 확인" aria-label="비밀번호 확인"><button class="pri">암호화 파일 만들기</button></form>
+<p class="msg" id="kmkmsg"></p>
+</div>
+</section>
+
+<p class="note" style="margin-top:32px">출처: 조달청 나라장터 가격정보현황서비스(공공데이터포털), 한국물가정보 종합물가정보(회사 구독 자료, 사내 열람용). 모두 참고 가격이며, 수량·조건·수급 상황에 따라 실제 거래가와 다를 수 있습니다.</p>
 </div></main>
 
+<script src="match.js"></script>
 <script>
 {
 const $=s=>document.querySelector(s);
@@ -169,21 +210,23 @@ const cls=v=>v>0.05?'up':v<-0.05?'down':'';
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const store={get(k,d){try{const v=localStorage.getItem('danga.'+k);return v?JSON.parse(v):d}catch(e){return d}},set(k,v){try{localStorage.setItem('danga.'+k,JSON.stringify(v))}catch(e){}}};
 const PAGE=200;
-let D=[],byK={},cats=['전체'],cat='전체',sel=null,q='',shown=PAGE,ro;
+let D=[],PPS=[],KPI=[],KMETA=null,ENC=null,CAT=null,byK={},cats=['전체'],cat='전체',sel=null,q='',shown=PAGE,ro;
 let lines=store.get('lines',[]);
 let MAT=[],mros=[];
 const meta=store.get('meta',{});
 const inQuote=k=>lines.some(l=>l.k===k);
 
 const drawCats=()=>{$('#cats').innerHTML=cats.map(c=>`<button class="chip" aria-pressed="${c===cat}" data-c="${esc(c)}">${esc(c)}</button>`).join('')};
-const list=()=>{const t=q.trim().toLowerCase().split(/\s+/).filter(Boolean);return D.filter(x=>(cat==='전체'||x.cat===cat)&&t.every(w=>x._s.includes(w)))};
+const list=()=>{const t=q.trim().toLowerCase().split(/\s+/).filter(Boolean);return D.filter(x=>(cat==='전체'||(cat==='한국물가정보'?x.src==='kpi':x.src!=='kpi'&&x.cat===cat))&&t.every(w=>x._s.includes(w)))};
+const tag=x=>x.src==='kpi'?`<span class="src kpi">물가정보${x.page?' p.'+esc(x.page):''}</span>`:'<span class="src">조달청</span>';
 const drawTable=()=>{const L=list(),V=L.slice(0,shown);
-$('#tbl tbody').innerHTML=V.length?V.map(x=>`<tr class="row${x.k===sel?' sel':''}" data-k="${esc(x.k)}" tabindex="0"><td>${esc(x.name)}<div class="spec">${esc(x.spec)}</div></td><td>${esc(x.unit)}</td><td class="num"><b>${won(x.p)}</b></td><td class="num ${cls(x.ch)}">${pct(x.ch)}</td><td style="white-space:nowrap">${esc(x.d)}</td><td><button class="add${inQuote(x.k)?' in':''}" data-add="${esc(x.k)}">${inQuote(x.k)?'담김':'+ 견적'}</button></td></tr>`).join(''):`<tr><td colspan="6"><div class="empty">${D.length?`'${esc(q)}'에 맞는 품목이 없습니다. 다른 이름이나 규격으로 찾아보세요.`:'아직 수집된 가격이 없습니다.'}</div></td></tr>`;
+$('#tbl tbody').innerHTML=V.length?V.map(x=>`<tr class="row${x.k===sel?' sel':''}" data-k="${esc(x.k)}" tabindex="0"><td>${esc(x.name)}${tag(x)}<div class="spec">${esc(x.form?x.form+' · ':'')}${esc(x.spec)}</div></td><td>${esc(x.unit)}</td><td class="num"><b>${won(x.p)}</b></td><td class="num ${cls(x.ch)}">${pct(x.ch)}</td><td style="white-space:nowrap">${esc(x.d)}</td><td><button class="add${inQuote(x.k)?' in':''}" data-add="${esc(x.k)}">${inQuote(x.k)?'담김':'+ 견적'}</button></td></tr>`).join(''):`<tr><td colspan="6"><div class="empty">${D.length?`'${esc(q)}'에 맞는 품목이 없습니다. 다른 이름이나 규격으로 찾아보세요.`:'아직 수집된 가격이 없습니다.'}</div></td></tr>`;
 $('#cnt').textContent=L.length>V.length?`${L.length.toLocaleString('ko-KR')}개 중 ${V.length}개 표시`:`${L.length.toLocaleString('ko-KR')}개 품목`;
 $('#more').hidden=L.length<=V.length};
 
 const drawDetail=()=>{const x=byK[sel];const el=$('#detail');
 if(!x){el.innerHTML='<div class="empty">표에서 품목을 고르면 가격 변화와 조건이 여기에 나옵니다.</div>';return}
+if(x.src==='kpi'){if(ro)ro.disconnect();el.innerHTML=`<h2>${esc(x.name)} <span class="spec">${esc(x.spec)}</span></h2><p class="note" style="margin:0">한국물가정보 종합물가정보 ${esc(x.d)} 기준</p><dl class="kv"><dt>단가</dt><dd><b>${won(x.p)}원</b> / ${esc(x.unit)}</dd><dt>분류</dt><dd>${esc(x.cat)}</dd><dt>형식</dt><dd>${esc(x.form)||'—'}</dd><dt>지역</dt><dd>${esc(x.rgn)||'—'}</dd><dt>메이커</dt><dd>${esc(x.maker)||'—'}</dd><dt>책 페이지</dt><dd>${esc(x.page)||'—'}</dd></dl><div class="acts"><button class="pri" data-add="${esc(x.k)}">${inQuote(x.k)?'견적서에 담김 · 보기':'견적서에 담기'}</button></div>${relHTML(x)}`;return}
 el.innerHTML=`<h2>${esc(x.name)} <span class="spec">${esc(x.spec)}</span></h2>
 <p class="note" style="margin:0 0 8px">가격이 바뀐 시점별 단가 (원/${esc(x.unit)})</p>${x.h.length>1?`<div class="fig"><svg role="img" aria-label="${esc(x.name)} 가격 변화"></svg></div>`:`<p class="empty">수집 기간 동안 가격이 ${won(x.p)}원으로 바뀌지 않았습니다.</p>`}
 <dl class="kv"><dt>현재 단가</dt><dd><b>${won(x.p)}원</b> / ${esc(x.unit)}</dd><dt>직전 대비</dt><dd class="${cls(x.ch)}">${pct(x.ch)}${x.ch!=null?` (${esc(x.cd)} 변경)`:''}</dd><dt>최근 게시</dt><dd>${esc(x.d)}</dd><dt>분야</dt><dd>${esc(x.cat)}</dd><dt>공급 지역</dt><dd>${esc(x.rgn)||'—'}</dd><dt>인도 조건</dt><dd>${esc(x.dlv)||'—'}</dd><dt>부가세</dt><dd>${esc(x.vat)||'—'}</dd></dl>
@@ -206,7 +249,7 @@ const r=new ResizeObserver(draw);r.observe(s);mros.push(r);draw()};
 const drawMat=()=>{mros.forEach(r=>r.disconnect());mros=[];
 $('#mgrid').innerHTML=MAT.map(m=>`<article class="mcard"><h3>${esc(m.label)}</h3><p class="note" style="margin:2px 0 0">${esc(m.role)} · 통계 품목: ${esc(m.item)}</p><div class="big">${m.v.toFixed(1)}</div><div class="chg"><span>전월 <b class="${cls(m.mom)}">${pct(m.mom)}</b></span><span>전년 <b class="${cls(m.yoy)}">${pct(m.yoy)}</b></span></div><div class="fig"><svg role="img" aria-label="${esc(m.label)} 최근 3년 지수 추이" data-id="${esc(m.id)}"></svg></div></article>`).join('')||'<div class="empty">아직 원자재 지표가 없습니다. 한국은행 인증키를 등록하고 수집을 한 번 실행하면 나타납니다.</div>';
 document.querySelectorAll('#mgrid svg').forEach(s=>{const m=MAT.find(x=>x.id===s.dataset.id);spark(s,m.s.slice(-36))})};
-const calc=()=>{const rows=lines.map(l=>{const x=byK[l.k]||l.snap;return{x,qty:l.qty,p:x.p,amt:Math.round(x.p*l.qty),gone:!byK[l.k]}});const sub=rows.reduce((a,r)=>a+r.amt,0),vat=Math.round(sub*.1);return{rows,sub,vat,total:sub+vat}};
+const calc=()=>{const rows=lines.map(l=>{const x=byK[l.k]||l.snap;return{x,qty:l.qty,p:x.p,amt:Math.round(x.p*l.qty),gone:!byK[l.k]&&!l.snap.fixed}});const sub=rows.reduce((a,r)=>a+r.amt,0),vat=Math.round(sub*.1);return{rows,sub,vat,total:sub+vat}};
 const drawQuote=()=>{const c=calc();
 $('#qt tbody').innerHTML=c.rows.length?c.rows.map((r,i)=>`<tr><td>${esc(r.x.name)}<div class="spec">${esc(r.x.spec)}${r.gone?' · 최신 자료에 없음, 담을 때 단가 사용':''}</div></td><td>${esc(r.x.unit)}</td><td class="num"><input class="qty" type="number" min="0" step="any" inputmode="decimal" value="${r.qty}" data-i="${i}" aria-label="${esc(r.x.name)} 수량"></td><td class="num">${won(r.p)}</td><td class="num amt"><b>${won(r.amt)}</b></td><td><button class="x" data-del="${i}" aria-label="삭제">×</button></td></tr>`).join(''):`<tr><td colspan="6"><div class="empty" style="border-color:#d9d8de;color:#5d5a66">아직 담은 품목이 없습니다. 단가 검색에서 '+ 견적'을 누르세요.</div></td></tr>`;
 drawTot(c)};
@@ -233,7 +276,7 @@ $('#th').addEventListener('change',drawAlerts);$('#per').addEventListener('chang
 $('#clr').addEventListener('click',()=>{if(!lines.length)return;lines=[];saveQ();drawQuote();drawTable();drawDetail();$('#qmsg').textContent='담은 품목을 모두 지웠습니다.'});
 
 const head=()=>({proj:$('#m-proj').value||'(공사명 미입력)',to:$('#m-to').value||'',date:$('#m-date').value});
-const sheetHTML=()=>{const c=calc(),h=head();return `<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"><title>견적서 - ${esc(h.proj)}</title><style>body{font-family:"Malgun Gothic","Noto Sans KR",sans-serif;color:#14110f;max-width:800px;margin:40px auto;padding:0 24px}h1{text-align:center;letter-spacing:.4em}table{width:100%;border-collapse:collapse;margin-top:16px}th,td{border:1px solid #999;padding:6px 8px;font-size:14px}th{background:#f2f2f2}.n{text-align:right}.m td{border:0;padding:2px 0}</style></head><body><h1>견 적 서</h1><table class="m"><tr><td>공사명: ${esc(h.proj)}</td><td class="n">견적일: ${esc(h.date)}</td></tr><tr><td>수신: ${esc(h.to)}</td><td class="n">단가 기준: 조달청 시설공통자재 가격</td></tr></table><table><tr><th>No</th><th>품목</th><th>규격</th><th>단위</th><th>수량</th><th>단가</th><th>금액</th></tr>${c.rows.map((r,i)=>`<tr><td class="n">${i+1}</td><td>${esc(r.x.name)}</td><td>${esc(r.x.spec)}</td><td>${esc(r.x.unit)}</td><td class="n">${r.qty}</td><td class="n">${won(r.p)}</td><td class="n">${won(r.amt)}</td></tr>`).join('')}<tr><td colspan="6" class="n">공급가액</td><td class="n">${won(c.sub)}</td></tr><tr><td colspan="6" class="n">부가세 (10%)</td><td class="n">${won(c.vat)}</td></tr><tr><td colspan="6" class="n"><b>합계</b></td><td class="n"><b>${won(c.total)}</b></td></tr></table></body></html>`};
+const sheetHTML=()=>{const c=calc(),h=head();return `<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"><title>견적서 - ${esc(h.proj)}</title><style>body{font-family:"Malgun Gothic","Noto Sans KR",sans-serif;color:#14110f;max-width:800px;margin:40px auto;padding:0 24px}h1{text-align:center;letter-spacing:.4em}table{width:100%;border-collapse:collapse;margin-top:16px}th,td{border:1px solid #999;padding:6px 8px;font-size:14px}th{background:#f2f2f2}.n{text-align:right}.m td{border:0;padding:2px 0}</style></head><body><h1>견 적 서</h1><table class="m"><tr><td>공사명: ${esc(h.proj)}</td><td class="n">견적일: ${esc(h.date)}</td></tr><tr><td>수신: ${esc(h.to)}</td><td class="n">단가 기준: 조달청·한국물가정보 참고 단가</td></tr></table><table><tr><th>No</th><th>품목</th><th>규격</th><th>단위</th><th>수량</th><th>단가</th><th>금액</th></tr>${c.rows.map((r,i)=>`<tr><td class="n">${i+1}</td><td>${esc(r.x.name)}</td><td>${esc(r.x.spec)}</td><td>${esc(r.x.unit)}</td><td class="n">${r.qty}</td><td class="n">${won(r.p)}</td><td class="n">${won(r.amt)}</td></tr>`).join('')}<tr><td colspan="6" class="n">공급가액</td><td class="n">${won(c.sub)}</td></tr><tr><td colspan="6" class="n">부가세 (10%)</td><td class="n">${won(c.vat)}</td></tr><tr><td colspan="6" class="n"><b>합계</b></td><td class="n"><b>${won(c.total)}</b></td></tr></table></body></html>`};
 const csv=()=>{const c=calc(),h=head();const qv=v=>`"${String(v).replace(/"/g,'""')}"`;return '﻿'+[['공사명',h.proj],['수신',h.to],['견적일',h.date],[],['No','품목','규격','단위','수량','단가','금액'],...c.rows.map((r,i)=>[i+1,r.x.name,r.x.spec,r.x.unit,r.qty,r.p,r.amt]),[],['','','','','','공급가액',c.sub],['','','','','','부가세',c.vat],['','','','','','합계',c.total]].map(r=>r.map(qv).join(',')).join('\r\n')};
 const fname=ext=>`견적서_${head().proj.replace(/[\\/:*?"<>|()]/g,'').trim()||'미입력'}_${head().date||'날짜없음'}.${ext}`;
 $('#pr').addEventListener('click',()=>{if(!lines.length){$('#qmsg').textContent='먼저 품목을 담아 주세요.';return}const w=window.open('','_blank');if(!w){$('#qmsg').textContent='팝업이 막혀 있습니다. 브라우저에서 이 사이트의 팝업을 허용해 주세요.';return}w.document.write(sheetHTML());w.document.close();w.focus();setTimeout(()=>w.print(),300)});
@@ -243,20 +286,104 @@ try{await navigator.clipboard.writeText(t);$('#qmsg').textContent='표를 복사
 
 $('#m-proj').value=meta.proj||'';$('#m-to').value=meta.to||'';$('#m-date').value=meta.date||new Date().toISOString().slice(0,10);
 
-const route=()=>{const v=['search','quote','alerts','materials'].includes(location.hash.slice(1))?location.hash.slice(1):'search';
+
+/* ---------- 두 가지 단가 자료 합치기 ---------- */
+let PMETA=null;
+const rebuild=()=>{D=[...KPI,...PPS];byK={};D.forEach(x=>{x._s=(x.name+' '+(x.form||'')+' '+x.spec+' '+x.cat).toLowerCase();byK[x.k]=x});CAT=null;
+cats=['전체',...(KPI.length?['한국물가정보']:[]),...[...new Set(PPS.map(x=>x.cat))].sort()];if(!cats.includes(cat))cat='전체';
+const parts=[];if(KPI.length)parts.push(`한국물가정보 ${KMETA&&KMETA.month?KMETA.month.replace('-','년 ')+'월호':''} ${KPI.length.toLocaleString('ko-KR')}개`);if(PMETA)parts.push(`조달청 ${(PMETA.through||'').replace(/-/g,'.')}까지 ${PPS.length.toLocaleString('ko-KR')}개 (매주 월요일 갱신)`);
+$('#asof').textContent=parts.length?parts.join(' · '):'가격 자료를 불러오는 중입니다…';
+drawCats();drawTable();drawQuote();drawAlerts();if(location.hash==='#search'||!location.hash)drawDetail()};
+const catalog=()=>{if(!CAT)CAT=Matcher.index(D.map(x=>Matcher.prepare({...x,src:x.src})));return CAT};
+
+/* ---------- 암호화 (PBKDF2 + AES-GCM, 브라우저 안에서만) ---------- */
+const b64=u8=>{let t='';for(let i=0;i<u8.length;i+=0x8000)t+=String.fromCharCode.apply(null,u8.subarray(i,i+0x8000));return btoa(t)};
+const unb64=t=>Uint8Array.from(atob(t),c=>c.charCodeAt(0));
+const ITER=250000;
+const keyOf=async(pw,salt)=>crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:ITER,hash:'SHA-256'},await crypto.subtle.importKey('raw',new TextEncoder().encode(pw),'PBKDF2',false,['deriveKey']),{name:'AES-GCM',length:256},false,['encrypt','decrypt']);
+const gz=async(u8,dir)=>{if(!('CompressionStream' in window))return null;const st=new Blob([u8]).stream().pipeThrough(dir==='in'?new CompressionStream('gzip'):new DecompressionStream('gzip'));return new Uint8Array(await new Response(st).arrayBuffer())};
+async function encrypt(obj,pw){const raw=new TextEncoder().encode(JSON.stringify(obj));const z=await gz(raw,'in');const salt=crypto.getRandomValues(new Uint8Array(16)),iv=crypto.getRandomValues(new Uint8Array(12));
+const ct=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv},await keyOf(pw,salt),z||raw));return{v:1,alg:'PBKDF2-SHA256/AES-GCM',iter:ITER,gz:!!z,salt:b64(salt),iv:b64(iv),rows:obj.items.length,month:obj.month,made:new Date().toISOString().slice(0,10),data:b64(ct)}}
+async function decrypt(enc,pw){const pt=new Uint8Array(await crypto.subtle.decrypt({name:'AES-GCM',iv:unb64(enc.iv)},await keyOf(pw,unb64(enc.salt)),unb64(enc.data)));return JSON.parse(new TextDecoder().decode(enc.gz?await gz(pt,'out'):pt))}
+
+/* ---------- 엑셀 읽기 ---------- */
+let xlsxP=null;
+const loadXLSX=()=>xlsxP||(xlsxP=new Promise((ok,no)=>{if(window.XLSX)return ok();const sc=document.createElement('script');sc.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';sc.onload=()=>ok();sc.onerror=()=>{xlsxP=null;no(new Error('엑셀 읽기 도구를 불러오지 못했습니다. 인터넷 연결을 확인해 주세요.'))};document.head.appendChild(sc)}));
+const isHTML=u8=>{const h=new TextDecoder('latin1').decode(u8.subarray(0,2048)).toLowerCase();return h.includes('<table')||h.includes('<html')||h.includes('<meta')};
+async function sheetsOf(file){const u8=new Uint8Array(await file.arrayBuffer());
+if(isHTML(u8)){const head=new TextDecoder('latin1').decode(u8.subarray(0,2048)).toLowerCase();const enc=/euc-kr|ks_c_5601|cp949/.test(head)?'euc-kr':'utf-8';const doc=new DOMParser().parseFromString(new TextDecoder(enc).decode(u8),'text/html');
+return [...doc.querySelectorAll('table')].map((t,i)=>({name:'표 '+(i+1),rows:[...t.rows].map(r=>[...r.cells].map(c=>c.textContent.replace(/\s+/g,' ').trim()))}))}
+await loadXLSX();const wb=XLSX.read(u8,{type:'array'});return wb.SheetNames.map(n=>({name:n,rows:XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,raw:true,defval:''})}))}
+const findHead=(rows,need)=>{for(let i=0;i<Math.min(rows.length,40);i++){const r=rows[i].map(c=>String(c).replace(/\s+/g,''));const idx={};for(const [k,re] of Object.entries(need)){const j=r.findIndex(c=>re.test(c));if(j<0){idx.miss=1;break}idx[k]=j}if(!idx.miss)return{i,idx}}return null};
+const num=v=>typeof v==='number'?v:+String(v).replace(/[,\s원]/g,'');
+
+/* ---------- 한국물가정보 파일 ---------- */
+function kpiFromSheets(sheets){for(const sh of sheets){const h=findHead(sh.rows,{name:/^품명/,spec:/^규격/,p:/^가격|^단가/});if(!h)continue;const r0=sh.rows[h.i].map(c=>String(c).replace(/\s+/g,''));const col=re=>r0.findIndex(c=>re.test(c));
+const ci={cat:col(/^분류/),form:col(/^형식/),unit:col(/^단위/),rgn:col(/^지역/),mon:col(/^자료월/),maker:col(/^메이커/),page:col(/^페이지/)};const g=(r,j)=>j>=0?String(r[j]??'').trim():'';
+const items=[];for(const r of sh.rows.slice(h.i+1)){const name=g(r,h.idx.name),p=num(r[h.idx.p]);if(!name||!(p>0))continue;const it={src:'kpi',cat:g(r,ci.cat),name,form:g(r,ci.form),spec:g(r,h.idx.spec),unit:g(r,ci.unit),rgn:g(r,ci.rgn),d:g(r,ci.mon),maker:g(r,ci.maker),page:g(r,ci.page),p,h:[],ch:null};it.k='kpi:'+[it.cat,it.name,it.form,it.spec,it.rgn,it.maker].join('|');items.push(it)}
+if(items.length){const m=(items[0].d.match(/(\d{4})\D+(\d{1,2})/)||[]);return{items,month:m[1]?m[1]+'-'+String(m[2]).padStart(2,'0'):''}}}return null}
+const kStatus=()=>{const st=$('#kstat'),f=$('#kform');if(KPI.length){st.textContent=`열려 있습니다. ${KMETA.month?KMETA.month.replace('-','년 ')+'월호, ':''}품목 ${KPI.length.toLocaleString('ko-KR')}개를 쓰고 있습니다.`;f.hidden=true;return}
+f.hidden=!ENC;st.textContent=ENC?`암호화된 자료가 있습니다(${ENC.month?ENC.month.replace('-','년 ')+'월호, ':''}${(ENC.rows||0).toLocaleString('ko-KR')}개 품목, ${ENC.made} 작성). 비밀번호를 넣으면 이 브라우저에서만 풀립니다.`:'아직 올라온 물가정보 파일이 없습니다. 아래에서 만들어 GitHub data 폴더에 올려 주세요.'};
+async function unlock(pw){const obj=await decrypt(ENC,pw);KPI=obj.items;KMETA={month:obj.month};rebuild();kStatus()}
+$('#kform').addEventListener('submit',async e=>{e.preventDefault();const pw=$('#kpw').value;if(!pw)return;$('#kmsg').textContent='푸는 중입니다…';
+try{await unlock(pw);if($('#kremember').checked)store.set('kpw',pw);$('#kmsg').textContent='한국물가정보 단가를 열었습니다. 단가 검색과 자동 견적에 바로 쓰입니다.';$('#kpw').value=''}catch(err){$('#kmsg').textContent='비밀번호가 맞지 않습니다.'}});
+let KNEW=null;
+$('#kf').addEventListener('change',async e=>{const f=e.target.files[0];KNEW=null;if(!f)return;$('#kmkmsg').textContent='읽는 중입니다…';
+try{const r=kpiFromSheets(await sheetsOf(f));if(!r)throw new Error('품명·규격·가격 열이 있는 표를 찾지 못했습니다. 나의 물가정보에서 내려받은 엑셀인지 확인해 주세요.');KNEW=r;$('#kmkmsg').textContent=`품목 ${r.items.length.toLocaleString('ko-KR')}개를 읽었습니다${r.month?' ('+r.month.replace('-','년 ')+'월호)':''}. 비밀번호를 정하고 암호화 파일을 만드세요.`}catch(err){$('#kmkmsg').textContent=err.message}});
+$('#kmk').addEventListener('submit',async e=>{e.preventDefault();const m=$('#kmkmsg');const a=$('#kpw1').value,b=$('#kpw2').value;
+if(!KNEW){m.textContent='먼저 한국물가정보 엑셀 파일을 골라 주세요.';return}if(a.length<12){m.textContent='비밀번호는 12자 이상으로 정해 주세요. 공개 저장소에 올라가는 파일이라 길수록 안전합니다.';return}if(a!==b){m.textContent='두 비밀번호가 다릅니다.';return}
+m.textContent='암호화하는 중입니다…';try{const enc=await encrypt(KNEW,a);const blob=new Blob([JSON.stringify(enc)],{type:'application/octet-stream'});const l=document.createElement('a');l.href=URL.createObjectURL(blob);l.download='kpi.enc';document.body.appendChild(l);l.click();setTimeout(()=>{URL.revokeObjectURL(l.href);l.remove()},1500);
+ENC=enc;await unlock(a);$('#kpw1').value=$('#kpw2').value='';m.textContent=`kpi.enc 파일을 내려받았습니다(${(blob.size/1024).toFixed(0)}KB). GitHub 저장소의 data 폴더에 올리면 모든 직원 화면에 반영됩니다. 지금 이 화면에서는 바로 쓸 수 있게 열어 두었습니다.`}catch(err){m.textContent='암호화에 실패했습니다: '+err.message}});
+
+/* ---------- 내역서 자동 견적 ---------- */
+let AL=[],ASH=[],afilter='all',ashown=PAGE;
+const SKIP_UNIT=/^(인|식|공|대\/일|HR)$/i;
+const WORK=/(용접|설치|절단|해체|운반|시공|도장|칠|검사|시험|천공|타공)\s*(\(.*\))?$/;
+function linesOf(sheet){const h=findHead(sheet.rows,{name:/^품명|^품목|^자재명/,spec:/^규격/,qty:/^수량/});if(!h)return[];const r0=sheet.rows[h.i].map(c=>String(c).replace(/\s+/g,''));const ui=r0.findIndex(c=>/^단위/.test(c));
+const out=[];sheet.rows.slice(h.i+1).forEach((r,j)=>{const name=String(r[h.idx.name]??'').trim(),qty=num(r[h.idx.qty]),unit=ui>=0?String(r[ui]??'').trim():'';if(!name||!(qty>0)||SKIP_UNIT.test(unit)||WORK.test(name))return;out.push({sheet:sheet.name,row:h.i+j+2,name,spec:String(r[h.idx.spec]??'').trim(),unit,qty})});return out}
+$('#af').addEventListener('change',async e=>{const f=e.target.files[0];if(!f)return;const m=$('#amsg');m.textContent='내역서를 읽는 중입니다…';$('#ares').hidden=true;
+try{const sh=await sheetsOf(f);ASH=sh.map(x=>({name:x.name,lines:linesOf(x)})).filter(x=>x.lines.length);if(!ASH.length)throw new Error('품명·규격·수량 열이 있는 시트를 찾지 못했습니다.');
+const sel=$('#asheet');sel.innerHTML=`<option value="*">전체 시트 (${ASH.reduce((a,x)=>a+x.lines.length,0)}줄)</option>`+ASH.map((x,i)=>`<option value="${i}">${esc(x.name)} (${x.lines.length}줄)</option>`).join('');sel.hidden=ASH.length<2;await runAuto()}catch(err){m.textContent=err.message}});
+$('#asheet').addEventListener('change',runAuto);
+async function runAuto(){const m=$('#amsg');if(!D.length){m.textContent='단가 자료를 아직 불러오지 못했습니다. 잠시 뒤 다시 시도해 주세요.';return}
+const v=$('#asheet').value;const src=v==='*'||!v?ASH.flatMap(x=>x.lines):ASH[+v].lines;const cat=catalog();AL=[];
+for(let i=0;i<src.length;i++){const l={...src[i]};const r=Matcher.match(l,cat);l.cands=r.cands;l.status=r.status;l.pick=r.cands.length&&r.status!=='none'?0:-1;l.p=l.pick>=0?l.cands[0].item.p:null;AL.push(l);if(i%150===149){m.textContent=`단가를 찾는 중입니다… ${i+1}/${src.length}`;await new Promise(r=>setTimeout(r,0))}}
+m.textContent=KPI.length?'':'한국물가정보 단가가 열려 있지 않아 조달청 단가로만 찾았습니다. 물가정보 자료 탭에서 열면 더 많이 찾습니다.';afilter='all';ashown=PAGE;$('#ares').hidden=false;drawAuto()}
+const stName={auto:'자동',check:'확인 필요',none:'못 찾음',man:'직접 정함'};
+const candLabel=c=>`${c.item.src==='kpi'?'[물가정보]':'[조달청]'} ${c.item.name}${c.item.form?' · '+c.item.form:''} · ${String(c.item.spec).slice(0,34)} — ${won(c.item.p)}원/${c.item.unit}`;
+function drawSum(){const n={auto:0,check:0,none:0,man:0};let sum=0;AL.forEach(l=>{n[l.status]++;if(l.p)sum+=Math.round(l.p*l.qty)});
+$('#asum').innerHTML=`<span>내역 <b>${AL.length}</b>줄</span><span>자동 <b class="down">${n.auto}</b></span><span>확인 필요 <b>${n.check}</b></span><span>못 찾음 <b>${n.none}</b></span>${n.man?`<span>직접 정함 <b>${n.man}</b></span>`:''}<span>재료비 합계 <b>${won(sum)}</b>원</span>`}
+function drawAuto(){if(!AL.length)return;drawSum();
+const fl=[['all','전체'],['check','확인 필요'],['none','못 찾음'],['auto','자동']];$('#afl').innerHTML=fl.map(([k,t])=>`<button class="chip" aria-pressed="${afilter===k}" data-af="${k}">${t}</button>`).join('');
+const L=AL.map((l,i)=>[l,i]).filter(([l])=>afilter==='all'||l.status===afilter),V=L.slice(0,ashown);
+$('#at tbody').innerHTML=V.map(([l,i])=>`<tr><td class="num">${i+1}</td><td>${esc(l.name)}<div class="spec">${esc(l.spec)}${ASH.length>1?' · '+esc(l.sheet):''}</div></td><td>${esc(l.unit)}</td><td class="num">${l.qty.toLocaleString('ko-KR')}</td>
+<td>${l.cands.length?`<select data-ai="${i}" aria-label="${i+1}번 단가 품목">${l.cands.map((c,j)=>`<option value="${j}"${l.pick===j?' selected':''}>${esc(candLabel(c))}</option>`).join('')}<option value="-1"${l.pick<0?' selected':''}>고르지 않음 (단가 직접 입력)</option></select>`:'<span class="note">맞는 품목이 없습니다. 단가를 직접 넣어 주세요.</span>'}</td>
+<td class="num"><input class="uprice" type="number" min="0" step="any" inputmode="decimal" data-ap="${i}" value="${l.p??''}" aria-label="${i+1}번 단가"></td><td class="num aamt">${l.p?won(l.p*l.qty):'—'}</td><td><span class="st ${l.status}">${stName[l.status]}</span></td></tr>`).join('')||'<tr><td colspan="8"><div class="empty">이 조건에 맞는 줄이 없습니다.</div></td></tr>';
+$('#amore').hidden=L.length<=V.length}
+document.addEventListener('click',e=>{const f=e.target.closest('[data-af]');if(f){afilter=f.dataset.af;ashown=PAGE;drawAuto()}});
+$('#amore').addEventListener('click',()=>{ashown+=PAGE;drawAuto()});
+$('#at').addEventListener('change',e=>{const s=e.target.closest('select[data-ai]');if(s){const l=AL[+s.dataset.ai];l.pick=+s.value;l.p=l.pick>=0?l.cands[l.pick].item.p:null;l.status='man';drawAuto()}});
+$('#at').addEventListener('input',e=>{const t=e.target.closest('input[data-ap]');if(t){const l=AL[+t.dataset.ap];l.p=+t.value||null;l.status='man';t.closest('tr').querySelector('.aamt').textContent=l.p?won(l.p*l.qty):'—';t.closest('tr').querySelector('.st').className='st man';t.closest('tr').querySelector('.st').textContent=stName.man;drawSum()}});
+$('#a2q').addEventListener('click',()=>{const ok=AL.filter(l=>l.p>0);if(!ok.length){$('#amsg').textContent='단가가 정해진 줄이 없습니다.';return}
+if(lines.length&&!window.confirm(`견적서에 이미 ${lines.length}줄이 있습니다. 자동 견적 ${ok.length}줄로 바꿀까요?`))return;
+const t=Date.now();lines=ok.map((l,i)=>({k:'auto:'+t+':'+i,qty:l.qty,snap:{name:l.name,spec:l.spec,unit:l.unit,p:l.p,fixed:true}}));saveQ();drawQuote();drawTable();
+const miss=AL.length-ok.length;location.hash='quote';$('#qmsg').textContent=`자동 견적 ${ok.length}줄을 견적서에 넣었습니다.`+(miss?` 단가가 없는 ${miss}줄은 빠졌습니다.`:'')});
+$('#acsv').addEventListener('click',()=>{const qv=v=>`"${String(v??'').replace(/"/g,'""')}"`;const rows=[['No','시트','행','품명','규격','단위','수량','상태','단가 출처','찾은 품목','찾은 규격','단가','금액'],...AL.map((l,i)=>{const c=l.pick>=0?l.cands[l.pick].item:null;return[i+1,l.sheet,l.row,l.name,l.spec,l.unit,l.qty,stName[l.status],c?(c.src==='kpi'?'한국물가정보':'조달청'):'',c?c.name+(c.form?' '+c.form:''):'',c?c.spec:'',l.p??'',l.p?Math.round(l.p*l.qty):'']})];
+const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+rows.map(r=>r.map(qv).join(',')).join('\r\n')],{type:'text/csv'}));a.download='자동견적_결과.csv';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000)});
+
+const route=()=>{const v=['search','auto','quote','alerts','materials','data'].includes(location.hash.slice(1))?location.hash.slice(1):'search';
 document.querySelectorAll('.view').forEach(s=>s.classList.toggle('on',s.id==='v-'+v));
 document.querySelectorAll('nav a').forEach(a=>a.dataset.v===v?a.setAttribute('aria-current','page'):a.removeAttribute('aria-current'));
-if(v==='search')drawDetail();if(v==='materials')drawMat()};
+if(v==='search')drawDetail();if(v==='materials')drawMat();if(v==='auto')drawAuto()};
 addEventListener('hashchange',route);
 drawQuote();route();
 
 fetch('data/materials.json',{cache:'no-cache'}).then(r=>r.ok?r.json():null).then(j=>{if(!j)throw 0;MAT=j.items||[];$('#masof').textContent=`${(j.through||'').replace('-','년 ')}월 기준 · 배관 자재와 관련된 지표 ${MAT.length}개`+(j.missing&&j.missing.length?` · 확인 중: ${j.missing.join(', ')}`:'');drawMat();drawDetail()}).catch(()=>{$('#masof').textContent='원자재 지표가 아직 없습니다.';drawMat()});
 fetch('data/prices.json',{cache:'no-cache'}).then(r=>{if(!r.ok)throw new Error(r.status);return r.json()}).then(j=>{
-D=j.items||[];D.forEach(x=>{x._s=(x.name+' '+x.spec+' '+x.cat).toLowerCase();byK[x.k]=x});
-cats=['전체',...[...new Set(D.map(x=>x.cat))].sort()];
-$('#asof').textContent=`${(j.through||'').replace(/-/g,'.')}까지 게시된 가격 · 품목 ${D.length.toLocaleString('ko-KR')}개 · 매주 월요일 자동 갱신`;
-sel=null;drawCats();drawTable();drawQuote();drawAlerts();route()
-}).catch(()=>{$('#asof').textContent='가격 자료를 불러오지 못했습니다. 수집이 한 번 이상 끝났는지 확인해 주세요.';drawCats();drawTable();drawAlerts()});
+PPS=(j.items||[]).map(x=>({...x,src:'pps'}));PMETA=j;rebuild()
+}).catch(()=>{rebuild();if(!KPI.length)$('#asof').textContent='조달청 가격 자료를 불러오지 못했습니다. 수집이 한 번 이상 끝났는지 확인해 주세요.'});
+fetch('data/kpi.enc',{cache:'no-cache'}).then(r=>r.ok?r.json():null).then(async j=>{ENC=j;kStatus();const pw=store.get('kpw',null);if(j&&pw){try{await unlock(pw)}catch(e){store.set('kpw',null);kStatus()}}}).catch(()=>{ENC=null;kStatus()});
+
 }
 </script>
 </body>
