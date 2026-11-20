@@ -8,6 +8,7 @@
   DATA_GO_KR_KEY   공공데이터포털 일반 인증키 (필수, GitHub Secrets에 저장)
   BACKFILL_FROM    처음 실행할 때 가져올 시작일 YYYYMMDD (기본 20250101)
   ALERT_THRESHOLD  알림 기준 변동률 % (기본 5)
+  ECOS_API_KEY     한국은행 ECOS 인증키 (있으면 원자재 동향도 수집, materials.py)
 
 만드는 파일 (data/ 폴더)
   postings.csv  게시된 가격 원본 이력 (가격게시번호 기준 중복 제거)
@@ -24,6 +25,8 @@ import time
 import urllib.parse
 import urllib.request
 from pathlib import Path
+
+import materials
 
 ENDPOINT = "https://apis.data.go.kr/1230000/ao/PriceInfoService/getPriceInfoListFcltyCmmnMtrilTotal"
 DATA = Path(os.environ.get("DATA_DIR", Path(__file__).parent / "data"))
@@ -175,7 +178,7 @@ def changes_md(changes, threshold):
     return "\n".join(lines) + "\n"
 
 
-def run(key, get=http_get, today=None, sleep=0.2):
+def run(key, get=http_get, today=None, sleep=0.2, ecos_key=None, ecos_get=None):
     DATA.mkdir(parents=True, exist_ok=True)
     today = today or dt.date.today()
     threshold = float(os.environ.get("ALERT_THRESHOLD", "5"))
@@ -214,9 +217,13 @@ def run(key, get=http_get, today=None, sleep=0.2):
     out = {"generated": dt.datetime.now().isoformat(timespec="minutes"),
            "through": done_until.isoformat(), "count": len(items), "items": items}
     (DATA / "prices.json").write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    body = changes_md(changes, threshold) if changes else ""
+    if ecos_key:
+        print("원자재 동향 수집 (한국은행 ECOS)")
+        body += materials.run(DATA, ecos_key, **({"get": ecos_get} if ecos_get else {}))
     md = DATA / "changes.md"
-    if changes:
-        md.write_text(changes_md(changes, threshold), encoding="utf-8")
+    if body:
+        md.write_text(body, encoding="utf-8")
     elif md.exists():
         md.unlink()
     state_path.write_text(json.dumps({"last_end": done_until.strftime("%Y%m%d")}), encoding="utf-8")
@@ -228,4 +235,4 @@ if __name__ == "__main__":
     key = os.environ.get("DATA_GO_KR_KEY")
     if not key:
         sys.exit("DATA_GO_KR_KEY 환경변수에 공공데이터포털 인증키를 넣어 주세요.")
-    run(key)
+    run(key, ecos_key=os.environ.get("ECOS_API_KEY"))
