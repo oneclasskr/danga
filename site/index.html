@@ -52,6 +52,13 @@ tbody tr.row{cursor:pointer}tbody tr.row:hover,tbody tr.sel{background:var(--sof
 .bars{display:grid;gap:8px;margin-top:14px}
 dl.kv{display:grid;grid-template-columns:6em minmax(0,1fr);gap:4px 10px;margin:14px 0 0;font-size:14px}dl.kv dt{color:var(--mute)}dl.kv dd{margin:0}
 .more{display:block;margin:14px auto 0}.more[hidden]{display:none}
+.mgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,290px),1fr));gap:16px}
+.mcard{border:1px solid var(--line);border-radius:12px;padding:16px 16px 10px}
+.mcard h3{font:600 18px/1.2 "Noto Serif KR",serif;margin:0}
+.mcard .big{font-size:26px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:8px}
+.mcard .fig{min-height:120px;margin-top:6px}
+.chg{display:flex;gap:14px;font-size:14px;font-variant-numeric:tabular-nums}
+.rel{margin-top:16px;padding-top:12px;border-top:1px solid var(--line)}.rel a{color:var(--blue)}
 .empty{padding:28px;text-align:center;color:var(--mute);border:1px dashed var(--line);border-radius:12px}
 .sheet{background:#fff;color:#14110f;border:1px solid #d9d8de;border-radius:4px;padding:clamp(18px,3vw,36px);box-shadow:0 8px 30px rgba(20,17,15,.08)}
 .sheet h3{font:600 26px/1.2 "Noto Serif KR",serif;text-align:center;letter-spacing:.3em;margin:0 0 18px}
@@ -83,6 +90,7 @@ dl.kv{display:grid;grid-template-columns:6em minmax(0,1fr);gap:4px 10px;margin:1
 <a href="#search" data-v="search">단가 검색</a>
 <a href="#quote" data-v="quote">견적서 <span class="badge" id="qn" hidden></span></a>
 <a href="#alerts" data-v="alerts">가격 변동 알림 <span class="badge" id="an" hidden></span></a>
+<a href="#materials" data-v="materials">원자재 동향</a>
 </nav>
 </div>
 </header>
@@ -143,6 +151,12 @@ dl.kv{display:grid;grid-template-columns:6em minmax(0,1fr);gap:4px 10px;margin:1
 <p class="note" style="margin-top:16px">매주 수집할 때 기준을 넘는 품목이 있으면 저장소의 이슈로 등록되어 메일로도 알림이 갑니다.</p>
 </section>
 
+<section class="view" id="v-materials">
+<p class="sub" id="masof" style="margin-bottom:16px">원자재 지표를 불러오는 중입니다…</p>
+<div class="mgrid" id="mgrid"></div>
+<p class="note" style="margin-top:16px">한국은행 생산자물가지수(2020년=100)입니다. 지수가 110이면 2020년보다 10% 비싸다는 뜻이고, 매달 중순 전월 값이 발표됩니다. 전월 대비 3% 이상 움직이면 알림에 함께 실립니다.</p>
+</section>
+
 <p class="note" style="margin-top:32px">출처: 조달청 나라장터 가격정보현황서비스(공공데이터포털). 조달청이 시설공사 원가계산에 쓰는 참고 가격이며, 수량·조건·수급 상황에 따라 실제 거래가와 다를 수 있습니다.</p>
 </div></main>
 
@@ -157,6 +171,7 @@ const store={get(k,d){try{const v=localStorage.getItem('danga.'+k);return v?JSON
 const PAGE=200;
 let D=[],byK={},cats=['전체'],cat='전체',sel=null,q='',shown=PAGE,ro;
 let lines=store.get('lines',[]);
+let MAT=[],mros=[];
 const meta=store.get('meta',{});
 const inQuote=k=>lines.some(l=>l.k===k);
 
@@ -172,7 +187,7 @@ if(!x){el.innerHTML='<div class="empty">표에서 품목을 고르면 가격 변
 el.innerHTML=`<h2>${esc(x.name)} <span class="spec">${esc(x.spec)}</span></h2>
 <p class="note" style="margin:0 0 8px">가격이 바뀐 시점별 단가 (원/${esc(x.unit)})</p>${x.h.length>1?`<div class="fig"><svg role="img" aria-label="${esc(x.name)} 가격 변화"></svg></div>`:`<p class="empty">수집 기간 동안 가격이 ${won(x.p)}원으로 바뀌지 않았습니다.</p>`}
 <dl class="kv"><dt>현재 단가</dt><dd><b>${won(x.p)}원</b> / ${esc(x.unit)}</dd><dt>직전 대비</dt><dd class="${cls(x.ch)}">${pct(x.ch)}${x.ch!=null?` (${esc(x.cd)} 변경)`:''}</dd><dt>최근 게시</dt><dd>${esc(x.d)}</dd><dt>분야</dt><dd>${esc(x.cat)}</dd><dt>공급 지역</dt><dd>${esc(x.rgn)||'—'}</dd><dt>인도 조건</dt><dd>${esc(x.dlv)||'—'}</dd><dt>부가세</dt><dd>${esc(x.vat)||'—'}</dd></dl>
-<div class="acts"><button class="pri" data-add="${esc(x.k)}">${inQuote(x.k)?'견적서에 담김 · 보기':'견적서에 담기'}</button></div>`;
+<div class="acts"><button class="pri" data-add="${esc(x.k)}">${inQuote(x.k)?'견적서에 담김 · 보기':'견적서에 담기'}</button></div>${relHTML(x)}`;
 const s=el.querySelector('svg');if(ro)ro.disconnect();if(!s)return;
 const draw=()=>{const W=s.clientWidth,H=s.clientHeight;if(!W)return;const n=x.h.length,pl=8,pr=8,pt=28,pb=28,vs=x.h.map(h=>h[1]);const lo=Math.min(...vs)*.97,hi=Math.max(...vs)*1.02;
 const X=i=>pl+(W-pl-pr)*(i/(n-1)),Y=v=>pt+(H-pt-pb)*(1-(v-lo)/(hi-lo||1));const narrow=W/n<70;
@@ -181,6 +196,16 @@ s.innerHTML=`<line x1="${pl}" x2="${W-pr}" y1="${H-pb}" y2="${H-pb}" stroke="var
 x.h.map((h,i)=>{const last=i===n-1,lab=!narrow||last||i===0;return `<circle cx="${X(i)}" cy="${Y(h[1])}" r="${last?5:3.5}" fill="${last?'var(--blue)':'var(--bg)'}" stroke="var(--blue)" stroke-width="2"/>${lab?`<text x="${X(i)}" y="${H-8}" font-size="12" fill="var(--mute)" text-anchor="${anc(i)}">${h[0].slice(2,7).replace('-','.')}</text><text x="${X(i)}" y="${Y(h[1])-10}" font-size="12" fill="${last?'var(--ink)':'var(--mute)'}" font-weight="${last?700:400}" text-anchor="${anc(i)}">${won(h[1])}</text>`:''}`}).join('')};
 ro=new ResizeObserver(draw);ro.observe(s);draw()};
 
+const related=x=>{const t=(x.name+' '+x.spec).toUpperCase();return MAT.filter(m=>m.links.some(w=>t.includes(w.toUpperCase())))};
+const relHTML=x=>{const R=related(x);if(!R.length)return'';return `<div class="rel"><p class="note" style="margin:0 0 6px">관련 원자재 (${esc(R[0].m)} 기준)</p><dl class="kv" style="margin:0">${R.map(m=>`<dt>${esc(m.label)}</dt><dd>전월 <span class="${cls(m.mom)}">${pct(m.mom)}</span> · 전년 <span class="${cls(m.yoy)}">${pct(m.yoy)}</span></dd>`).join('')}</dl><p class="note" style="margin:6px 0 0"><a href="#materials">원자재 동향 전체 보기</a></p></div>`};
+const spark=(s,ser)=>{const draw=()=>{const W=s.clientWidth,H=s.clientHeight;if(!W||ser.length<2)return;const pl=4,pr=4,pt=20,pb=22,vs=ser.map(v=>v[1]),lo=Math.min(...vs),hi=Math.max(...vs),n=ser.length;
+const X=i=>pl+(W-pl-pr)*i/(n-1),Y=v=>pt+(H-pt-pb)*(1-(v-lo)/((hi-lo)||1));const pts=ser.map((v,i)=>`${X(i)},${Y(v[1])}`).join(' ');const iMax=vs.indexOf(hi),iMin=vs.indexOf(lo);
+const lab=(i,v,dy)=>`<text x="${X(i)}" y="${Y(v)+dy}" font-size="11" fill="var(--mute)" text-anchor="${i<n/6?'start':i>n*5/6?'end':'middle'}">${v.toFixed(1)}</text>`;
+s.innerHTML=`<polygon points="${X(0)},${H-pb} ${pts} ${X(n-1)},${H-pb}" fill="var(--blue)" opacity=".08"/><polyline points="${pts}" fill="none" stroke="var(--blue)" stroke-width="2"/><circle cx="${X(n-1)}" cy="${Y(vs[n-1])}" r="4" fill="var(--blue)"/>`+(iMax!==n-1?lab(iMax,hi,-7):'')+(iMin!==n-1&&iMin!==iMax?lab(iMin,lo,-8):'')+`<text x="${pl}" y="${H-5}" font-size="11" fill="var(--mute)">${ser[0][0].replace('-','.')}</text><text x="${W-pr}" y="${H-5}" font-size="11" fill="var(--mute)" text-anchor="end">${ser[n-1][0].replace('-','.')}</text>`};
+const r=new ResizeObserver(draw);r.observe(s);mros.push(r);draw()};
+const drawMat=()=>{mros.forEach(r=>r.disconnect());mros=[];
+$('#mgrid').innerHTML=MAT.map(m=>`<article class="mcard"><h3>${esc(m.label)}</h3><p class="note" style="margin:2px 0 0">${esc(m.role)} · 통계 품목: ${esc(m.item)}</p><div class="big">${m.v.toFixed(1)}</div><div class="chg"><span>전월 <b class="${cls(m.mom)}">${pct(m.mom)}</b></span><span>전년 <b class="${cls(m.yoy)}">${pct(m.yoy)}</b></span></div><div class="fig"><svg role="img" aria-label="${esc(m.label)} 최근 3년 지수 추이" data-id="${esc(m.id)}"></svg></div></article>`).join('')||'<div class="empty">아직 원자재 지표가 없습니다. 한국은행 인증키를 등록하고 수집을 한 번 실행하면 나타납니다.</div>';
+document.querySelectorAll('#mgrid svg').forEach(s=>{const m=MAT.find(x=>x.id===s.dataset.id);spark(s,m.s.slice(-36))})};
 const calc=()=>{const rows=lines.map(l=>{const x=byK[l.k]||l.snap;return{x,qty:l.qty,p:x.p,amt:Math.round(x.p*l.qty),gone:!byK[l.k]}});const sub=rows.reduce((a,r)=>a+r.amt,0),vat=Math.round(sub*.1);return{rows,sub,vat,total:sub+vat}};
 const drawQuote=()=>{const c=calc();
 $('#qt tbody').innerHTML=c.rows.length?c.rows.map((r,i)=>`<tr><td>${esc(r.x.name)}<div class="spec">${esc(r.x.spec)}${r.gone?' · 최신 자료에 없음, 담을 때 단가 사용':''}</div></td><td>${esc(r.x.unit)}</td><td class="num"><input class="qty" type="number" min="0" step="any" inputmode="decimal" value="${r.qty}" data-i="${i}" aria-label="${esc(r.x.name)} 수량"></td><td class="num">${won(r.p)}</td><td class="num amt"><b>${won(r.amt)}</b></td><td><button class="x" data-del="${i}" aria-label="삭제">×</button></td></tr>`).join(''):`<tr><td colspan="6"><div class="empty" style="border-color:#d9d8de;color:#5d5a66">아직 담은 품목이 없습니다. 단가 검색에서 '+ 견적'을 누르세요.</div></td></tr>`;
@@ -218,13 +243,14 @@ try{await navigator.clipboard.writeText(t);$('#qmsg').textContent='표를 복사
 
 $('#m-proj').value=meta.proj||'';$('#m-to').value=meta.to||'';$('#m-date').value=meta.date||new Date().toISOString().slice(0,10);
 
-const route=()=>{const v=['search','quote','alerts'].includes(location.hash.slice(1))?location.hash.slice(1):'search';
+const route=()=>{const v=['search','quote','alerts','materials'].includes(location.hash.slice(1))?location.hash.slice(1):'search';
 document.querySelectorAll('.view').forEach(s=>s.classList.toggle('on',s.id==='v-'+v));
 document.querySelectorAll('nav a').forEach(a=>a.dataset.v===v?a.setAttribute('aria-current','page'):a.removeAttribute('aria-current'));
-if(v==='search')drawDetail()};
+if(v==='search')drawDetail();if(v==='materials')drawMat()};
 addEventListener('hashchange',route);
 drawQuote();route();
 
+fetch('data/materials.json',{cache:'no-cache'}).then(r=>r.ok?r.json():null).then(j=>{if(!j)throw 0;MAT=j.items||[];$('#masof').textContent=`${(j.through||'').replace('-','년 ')}월 기준 · 배관 자재와 관련된 지표 ${MAT.length}개`+(j.missing&&j.missing.length?` · 확인 중: ${j.missing.join(', ')}`:'');drawMat();drawDetail()}).catch(()=>{$('#masof').textContent='원자재 지표가 아직 없습니다.';drawMat()});
 fetch('data/prices.json',{cache:'no-cache'}).then(r=>{if(!r.ok)throw new Error(r.status);return r.json()}).then(j=>{
 D=j.items||[];D.forEach(x=>{x._s=(x.name+' '+x.spec+' '+x.cat).toLowerCase();byK[x.k]=x});
 cats=['전체',...[...new Set(D.map(x=>x.cat))].sort()];
